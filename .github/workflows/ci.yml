@@ -33,7 +33,7 @@ jobs:
 
       - name: Build extension (editable)
         run: |
-          maturin develop --release -m pyproject.toml
+          pip install -e .
 
       - name: Run tests
         run: pytest -q
@@ -49,5 +49,5 @@ jobs:
           components: clippy
           override: true
       - name: Clippy (no-deps)
-        run: cargo clippy --no-deps -D warnings
+        run: cargo clippy --no-deps -- -D warnings
 
