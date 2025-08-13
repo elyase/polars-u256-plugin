@@ -71,7 +71,7 @@ where
     let (a_bc, b_bc) = broadcast_binary_pair(a, b).unwrap();
     let iter = a_bc
         .into_iter()
-        .zip(b_bc.into_iter())
+        .zip(&*b_bc)
         .map(|(la, rb)| match (la, rb) {
             (Some(la), Some(rb)) if check_len32(la) && check_len32(rb) => f(la, rb),
             _ => None,
@@ -91,7 +91,7 @@ where
     let (a_bc, b_bc) = broadcast_binary_pair(a, b).unwrap();
     let iter = a_bc
         .into_iter()
-        .zip(b_bc.into_iter())
+        .zip(&*b_bc)
         .map(|(la, rb)| match (la, rb) {
             (Some(la), Some(rb)) if check_len32(la) && check_len32(rb) => f(la, rb),
             _ => None,
