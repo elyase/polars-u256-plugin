@@ -21,8 +21,8 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://pypi.org/project/polars_u256_plugin/"
-Repository = "https://github.com/your-repo/polars-u256-plugin"  # TODO: replace with real repo URL
-Issues = "https://github.com/your-repo/polars-u256-plugin/issues"  # TODO: replace with real issues URL
+Repository = "https://github.com/elyase/polars-u256-plugin"
+Issues = "https://github.com/elyase/polars-u256-plugin/issues"
 
 [tool.hatch.build]
 include = [
