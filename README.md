@@ -175,16 +175,21 @@ pl.col("balance").i256 + pl.col("amount").i256
 - Use Polars chunked builders or `from_iter_options(...).into_series()` (vs raw Arrow arrays).
 - Prefer BinaryView-backed builders; avoid unsafe Series construction.
 - Pre-size builders; use `append_null/append_option` for nulls.
-- Semantics: div/mod by zero → null; u256 add/mul overflow → null.
+- Semantics:
+  - Division: u256 "/" = integer division (truncates toward zero). i256 "/" = truncates toward zero; "//" and `i256.div_euclid(...)` are Euclidean (floor) division.
+  - Remainder: `i256.mod` carries dividend sign; `i256.rem_euclid(...)` is non-negative.
+  - Errors: div/mod by zero → null.
+  - Overflow: u256 add/mul overflow → null; i256 add/sub/mul overflow/underflow → null (no wrapping).
+  - to_int: returns null if the value does not fit in signed 64-bit.
 
 ### I256 (signed)
 - Two’s complement over 256 bits.
 - `div` truncates toward zero; `mod` carries dividend sign.
-- Euclidean: `i256_div_euclid` / `i256_rem_euclid`.
+- Euclidean: `i256.div_euclid(...)` / `i256.rem_euclid(...)`.
 
 Note: Constructing a DataFrame directly with Python ints > 64 -bit may result in non-integer dtype (e.g., Object) depending on your Polars build. In such cases, prefer providing values as hex strings and `from_hex`, or generate constants in expressions via `from_int(pl.lit(...))`.
 
 ## Credits
 
 - [ruint](https://github.com/recmo/uint): High-performance Rust library for arbitrary-precision unsigned integers
-- [polars-evm](https://github.com/sslivkoff/polars_evm): 
+- [polars-evm](https://github.com/sslivkoff/polars_evm): Utilities for working with EVM data in polars
