@@ -36,6 +36,11 @@ include = [
   "LICENSE",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=6.0",
+]
+
 [tool.uv]
 # Rebuild when Python/Rust project files or rust sources change
 cache-keys = [
