@@ -1,0 +1,31 @@
+[package]
+name = "polars-u256-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Use published polars crates
+polars = { version = "0.50", default-features = false }
+polars-ffi = { version = "0.50" }
+polars-core = { version = "0.50", default-features = false }
+polars-arrow = { version = "0.50", default-features = false }
+polars-error = { version = "0.50" }
+polars-utils = { version = "0.50" }
+
+# Big integer + hex parsing
+ruint = { version = "1", default-features = true, features = ["std"] }
+hex = "0.4"
+
+[features]
+default = []
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true

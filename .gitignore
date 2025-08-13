@@ -1,0 +1,15 @@
+uv.lock
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.pvenv/
+dist/
+build/
+*.egg-info/
+target/
+*.so
+*.dylib
+*.dll
+polars_u256_plugin/bin/

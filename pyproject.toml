@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polars_u256_plugin"
+version = "0.1.0"
+description = "Polars plugin for 256-bit unsigned integers (U256) backed by ruint"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "polars-u256-plugin authors" }]
+dependencies = [
+  "polars>=0.50",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/pola-rs/polars/issues/15443"
+Repository = "https://github.com/your-repo/polars-u256-plugin"
+Issues = "https://github.com/your-repo/polars-u256-plugin/issues"
+
+[tool.hatch.build]
+include = [
+  "polars_u256_plugin/**",
+  "README.md",
+  "examples/**",
+  "LICENSE",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["polars_u256_plugin"]
+
