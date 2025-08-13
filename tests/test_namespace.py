@@ -23,7 +23,7 @@ def test_u256_namespace_ops_small():
 
 def test_i256_namespace_ops():
     df = pl.DataFrame({"x": [-5, -1, 3]}).with_columns(
-        x=u256.i256.from_ints(pl.col("x"))
+        x=u256.i256.from_int(pl.col("x"))
     )
     out = df.with_columns(
         s=(pl.col("x").i256 + 2),
@@ -35,3 +35,21 @@ def test_i256_namespace_ops():
         pl.col("f").i256.to_hex().alias("f_hex"),
     )
     assert hex_df.height == 3
+
+
+def test_df_u256_namespace_from_int_and_to_hex():
+    df = pl.DataFrame({"balance": [1, 2], "amount": [3, 4]})
+    # Convert both columns to u256 in-place
+    df2 = df.u256.from_int(["balance", "amount"], replace=True)
+    # Round-trip via to_int to verify conversion
+    ints = df2.select(
+        u256.to_int(pl.col("balance")).alias("b"),
+        u256.to_int(pl.col("amount")).alias("a"),
+    )
+    assert ints["b"].to_list() == [1, 2]
+    assert ints["a"].to_list() == [3, 4]
+
+    # Add hex display column without replacing
+    df3 = df2.u256.to_hex(["balance"], replace=False)
+    hex_list = df3["balance_hex"].to_list()
+    assert all(isinstance(x, str) and x.startswith("0x") for x in hex_list)

@@ -133,6 +133,8 @@ u256.format_u256_dataframe(df, cols)    # Format u256 columns as hex
 u256.print_u256_dataframe(df)           # Print with hex formatting
 df.with_u256_display("col")             # Add hex display columns
 df.show_u256_hex("col")                 # Replace binary with hex
+df.u256.from_int(["balance", "amount"], replace=True)  # Convert int cols → u256
+df.u256.to_hex(["balance"], replace=False)              # Add balance_hex
 ```
 
 ### Fluent API (.u256 namespace)
@@ -157,7 +159,7 @@ All u256 functions available with `i256.` prefix, plus signed-specific:
 ```python
 i256.div_euclid(a, b)       # Euclidean division
 i256.rem_euclid(a, b)       # Euclidean remainder
-i256.from_int(value)        # Supports negative integers
+i256.from_int(value_or_col) # Python int or Polars Expr; supports negatives
 i256.to_int(col)            # Returns signed integers
 
 # Namespace: .i256 (same operators as .u256)

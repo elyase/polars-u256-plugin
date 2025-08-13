@@ -1,9 +1,14 @@
-"""Display formatting utilities for u256 columns."""
+"""Display and DataFrame-level utilities for u256 columns.
+
+This module intentionally avoids importing functional APIs from
+``polars_u256_plugin.__init__`` at module import time to prevent circular
+import issues. Functions like ``to_hex`` and ``from_int`` are imported lazily
+inside methods.
+"""
 
 from __future__ import annotations
 
 import polars as pl
-from . import to_hex
 
 
 class U256DisplayMixin:
@@ -21,6 +26,9 @@ class U256DisplayMixin:
         if not hasattr(self, 'with_columns'):
             raise ValueError("This method can only be used on DataFrames")
             
+        # Lazy import to avoid circular import at module init
+        from . import to_hex  # noqa: WPS433
+
         df = self
         for col_name in u256_columns:
             df = df.with_columns(
@@ -40,6 +48,9 @@ class U256DisplayMixin:
         if not hasattr(self, 'with_columns'):
             raise ValueError("This method can only be used on DataFrames")
             
+        # Lazy import to avoid circular import at module init
+        from . import to_hex  # noqa: WPS433
+
         df = self
         column_updates = {}
         
@@ -48,6 +59,53 @@ class U256DisplayMixin:
             
         return df.with_columns(**column_updates)
 
+
+class U256DFNamespace:
+    """DataFrame-level convenience methods for u256 operations.
+
+    Access via ``df.u256``.
+    """
+
+    def __init__(self, df: pl.DataFrame):
+        self._df = df
+
+    def from_int(self, columns: list[str], replace: bool = True) -> pl.DataFrame:
+        """Convert integer columns to u256.
+
+        Args:
+            columns: Column names to convert.
+            replace: If True, replace columns in-place; otherwise, add "{name}_u256".
+        """
+        # Lazy import to avoid circular import at module init
+        from . import from_int as u256_from_int  # noqa: WPS433
+
+        updates: dict[str, pl.Expr] = {}
+        for name in columns:
+            expr = u256_from_int(pl.col(name))
+            if replace:
+                updates[name] = expr
+            else:
+                updates[f"{name}_u256"] = expr
+        return self._df.with_columns(**updates)
+
+    def to_hex(self, columns: list[str], replace: bool = False) -> pl.DataFrame:
+        """Format u256 binary columns as hex strings.
+
+        Args:
+            columns: Column names to format.
+            replace: If True, replace columns in-place; otherwise, add "{name}_hex".
+        """
+        # Lazy import to avoid circular import at module init
+        from . import to_hex  # noqa: WPS433
+
+        updates: dict[str, pl.Expr] = {}
+        for name in columns:
+            expr = to_hex(pl.col(name))
+            if replace:
+                updates[name] = expr
+            else:
+                updates[f"{name}_hex"] = expr
+        return self._df.with_columns(**updates)
 
 def format_u256_dataframe(df: pl.DataFrame, u256_columns: list[str] | None = None, mode: str = "replace") -> pl.DataFrame:
     """Format a DataFrame to display u256 columns as hex strings.
@@ -73,6 +131,9 @@ def format_u256_dataframe(df: pl.DataFrame, u256_columns: list[str] | None = Non
                     if sample_val and len(sample_val) == 32:
                         u256_columns.append(col_name)
     
+    # Lazy import to avoid circular import at module init
+    from . import to_hex  # noqa: WPS433
+
     if mode == "replace":
         column_updates = {}
         for col_name in u256_columns:
@@ -105,6 +166,8 @@ def _patch_dataframe():
     """Add u256 display methods to DataFrame class."""
     pl.DataFrame.with_u256_display = U256DisplayMixin.with_u256_display
     pl.DataFrame.show_u256_hex = U256DisplayMixin.show_u256_hex
+    # Namespace property
+    pl.DataFrame.u256 = property(lambda self: U256DFNamespace(self))
 
 
 # Auto-patch when module is imported
