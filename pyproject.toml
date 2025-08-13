@@ -1,30 +1,34 @@
 [build-system]
-requires = ["hatchling>=1.18"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "polars_u256_plugin"
-version = "0.1.0"
-description = "Polars plugin for 256-bit unsigned integers (U256) backed by ruint"
+version = "0.2.0"
+description = "Polars plugin for 256-bit U256 and signed I256 (two's complement) integers backed by ruint"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "polars-u256-plugin authors" }]
 dependencies = [
-  "polars>=0.50",
+  "polars>=1.3.0",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
 
 [project.urls]
-Homepage = "https://github.com/pola-rs/polars/issues/15443"
-Repository = "https://github.com/your-repo/polars-u256-plugin"
-Issues = "https://github.com/your-repo/polars-u256-plugin/issues"
+Homepage = "https://pypi.org/project/polars_u256_plugin/"
+Repository = "https://github.com/elyase/polars-u256-plugin"
+Issues = "https://github.com/elyase/polars-u256-plugin/issues"
 
-[tool.hatch.build]
+[tool.maturin]
+# Build a PyO3 extension module placed at polars_u256_plugin/_internal.*
+module-name = "polars_u256_plugin._internal"
+# Include Python sources and metadata in wheels/sdist
 include = [
   "polars_u256_plugin/**",
   "README.md",
@@ -32,6 +36,12 @@ include = [
   "LICENSE",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["polars_u256_plugin"]
-
+[tool.uv]
+# Rebuild when Python/Rust project files or rust sources change
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "**/*.rs" },
+]
+# For development builds with Rust dev profile, uncomment:
+# config-settings = { build-args = "--profile=dev" }

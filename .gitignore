@@ -13,3 +13,16 @@ target/
 *.dylib
 *.dll
 polars_u256_plugin/bin/
+# local scratch/logs
+_t/
+dl_wheels_ubuntu/
+gh_*.txt
+gh_*.json
+log_*.txt
+wheel_build_output*.txt
+.logs/
+build_maturin*.log
+test_output*.txt
+migration_*.*
+.DS_Store
+uv.lock

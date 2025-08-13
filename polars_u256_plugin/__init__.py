@@ -7,6 +7,14 @@ from typing import Any, Callable, Union
 
 import polars as pl
 
+# Package version (for Python introspection)
+try:  # Python 3.8+
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("polars_u256_plugin")
+except Exception:  # Fallback in editable/dev installs without metadata
+    __version__ = "0.0.0"
+
 
 def _default_library_path() -> str:
     # 1) Explicit override via env
@@ -32,7 +40,16 @@ def _default_library_path() -> str:
     except Exception:
         pass
 
-    # 3) Fallback to dev path (cargo build output)
+    # 3) Try the bundled PyO3 extension module path (if installed via maturin)
+    try:
+        from . import _internal as _ext  # type: ignore
+        mod_file = getattr(_ext, "__file__", None)
+        if mod_file:
+            return str(Path(mod_file))
+    except Exception:
+        pass
+
+    # 4) Fallback to dev path (cargo build output)
     sysname = platform.system()
     root = Path(__file__).resolve().parents[1]
     base = root / "target" / "release"
@@ -63,14 +80,15 @@ def _wrap(name: str) -> Callable:
             is_elementwise=True,
             use_abs_path=True,
         )
-
     return call
+
 
 
 # Convenience callables mirroring the Rust functions
 from_hex = _wrap("u256_from_hex")
 to_hex = _wrap("u256_to_hex")
 to_int = _wrap("u256_to_int")
+from_ints = _wrap("u256_from_int")
 add = _wrap("u256_add")
 sub = _wrap("u256_sub")
 mul = _wrap("u256_mul")
@@ -92,15 +110,14 @@ shr = _wrap("u256_shr")
 # Aggregation functions (need different wrapper for non-elementwise)
 def _wrap_agg(name: str) -> Callable:
     def call(*args: Any, **kwargs: Any):
-        # For aggregations, only the primary column expression is expected.
         coerced_args = [_coerce_arg(a) for a in args]
         return pl.plugins.register_plugin_function(
             plugin_path=library_path(),
             function_name=name,
             args=coerced_args,
             kwargs=kwargs or None,
-            is_elementwise=False,  # Aggregation functions are not elementwise
-            returns_scalar=True,   # Return a scalar in aggregation contexts (group_by/select)
+            is_elementwise=False,
+            returns_scalar=True,
             use_abs_path=True,
         )
     return call
@@ -143,6 +160,7 @@ def register_all() -> None:
 
 # Import display utilities (this will auto-patch DataFrame class)
 from .display import format_u256_dataframe, print_u256_dataframe
+from .expr_namespace import install_expr_namespace
 
 # Re-export for convenience
 __all__ = [
@@ -174,6 +192,13 @@ __all__ = [
     "lit",
     "from_int",
 ]
+
+# Install Expr namespace for fluent API at import time
+try:
+    install_expr_namespace()
+except Exception:
+    # Non-fatal; users can still access functional API
+    pass
 
 
 # ------- Convenience coercion helpers -------
@@ -274,10 +299,11 @@ def _coerce_arg_i256(arg: Any) -> Any:
 
 i256_from_hex = _wrap_i256("i256_from_hex")
 i256_to_hex = _wrap_i256("i256_to_hex")
-i256_add = _wrap_i256("i256_add")
-i256_sub = _wrap_i256("i256_sub")
+i256_from_ints = _wrap_i256("i256_from_int")
+i256_add = _wrap("i256_add")
+i256_sub = _wrap("i256_sub")
 i256_mul = _wrap_i256("i256_mul")
-i256_div = _wrap_i256("i256_div")
+i256_div = _wrap("i256_div")
 i256_mod = _wrap_i256("i256_mod")
 i256_div_euclid = _wrap_i256("i256_div_euclid")
 i256_rem_euclid = _wrap_i256("i256_rem_euclid")
@@ -310,6 +336,7 @@ i256_sum = _wrap_agg_i256("i256_sum")
 class _I256:
     from_hex = staticmethod(i256_from_hex)
     to_hex = staticmethod(i256_to_hex)
+    from_ints = staticmethod(i256_from_ints)
     from_int = staticmethod(lambda v: pl.lit(_int_to_i256_be32(int(v))))
     to_int = staticmethod(i256_to_int)
     add = staticmethod(i256_add)
@@ -334,6 +361,7 @@ __all__ += [
     "i256",
     "i256_from_hex",
     "i256_to_hex",
+    "i256_from_ints",
     "i256_add",
     "i256_sub",
     "i256_mul",

@@ -1,160 +1,61 @@
-# CI workflow for polars-u256-plugin
-# Based on the cookiecutter template from https://github.com/MarcoGorelli/cookiecutter-polars-plugins
-
-name: CI
+name: Publish to PyPI
 
 on:
-  push:
-    branches:
-      - main
-      - master
-      - Claude
-    tags:
-      - '*'
-  pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-# Make sure CI fails on all warnings, including Clippy lints
-env:
-  RUSTFLAGS: "-Dwarnings"
-
 jobs:
-  linux-just-test:
-    runs-on: ubuntu-latest
+  build-wheels:
+    name: Build wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.9", "3.11", "3.12"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Set up Rust
-        run: rustup show
-      - uses: mozilla-actions/sccache-action@v0.0.6
-      - name: Clippy (deny warnings)
-        run: cargo clippy -- -D warnings
-      
-      - name: Build Rust library
-        run: cargo build --release
-        
-      - name: Set up Python environment
-        run: |
-          python -m pip install --upgrade pip
-          pip install polars>=0.50 pytest
-          pip install -e .
-          
-      - name: Run tests
-        run: python -m pytest tests/ -v
-
-  linux-min-versions-just-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions-rs/toolchain@v1
         with:
-          python-version: "3.9"
-
-      - name: Set up Rust
-        run: rustup show
-      - uses: mozilla-actions/sccache-action@v0.0.6
-      - name: Clippy (deny warnings)
-        run: cargo clippy -- -D warnings
-      
-      - name: Build Rust library
-        run: cargo build --release
-        
-      - name: Test with minimum Polars version
+          toolchain: stable
+          override: true
+      - name: Install maturin
+        run: pip install --upgrade maturin==1.6.0
+      - name: Build wheels and sdist
         run: |
-          python -m pip install --upgrade pip
-          pip install polars==0.50.0 pytest  # min version
-          pip install -e .
-          python -m pytest tests/ -v
-
-  build-wheels:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          
-      - name: Set up Rust
-        run: rustup show
-      - uses: mozilla-actions/sccache-action@v0.0.6
-      
-      - name: Build Rust library
-        run: cargo build --release
-      
-      - name: Copy native library into package
-        shell: bash
-        run: |
-          set -euxo pipefail
-          mkdir -p polars_u256_plugin/bin
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            cp target/release/libpolars_u256_plugin.dylib polars_u256_plugin/bin/libpolars_u256_plugin.dylib
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp target/release/polars_u256_plugin.dll polars_u256_plugin/bin/polars_u256_plugin.dll
-          else
-            cp target/release/libpolars_u256_plugin.so polars_u256_plugin/bin/libpolars_u256_plugin.so
-          fi
-      
-      - name: Build Python package
-        run: |
-          python -m pip install --upgrade pip build
-          python -m build
-          
+          maturin build --release -m pyproject.toml -o dist
+          maturin sdist -m pyproject.toml -o dist
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
-          path: dist/
+          name: dist-${{ runner.os }}
+          path: dist/*
 
-  test-wheels:
-    runs-on: ${{ matrix.os }}
-    needs: [build-wheels]
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.11"]
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: wheels-${{ matrix.os }}
-          path: dist
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-      - name: Install wheel and test
-        shell: bash
-        run: |
-          set -euxo pipefail
-          python -m pip install --upgrade pip
-          pip install polars>=0.50 pytest
-          pip install dist/*.whl
-          pytest -q
-
-  release:
-    name: Release
+  publish:
+    name: Publish to PyPI
+    needs: build-wheels
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
-    needs: [linux-just-test, linux-min-versions-just-test, build-wheels, test-wheels]
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: write
+    if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@v4
-        
-      - name: Publish to PyPI
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: wheels-*/
+          path: dist
+      - name: Flatten artifacts
+        run: |
+          mkdir -p upload
+          find dist -type f -name "*.whl" -exec cp {} upload/ \;
+          find dist -type f -name "*.tar.gz" -exec cp {} upload/ \;
+      - name: Verify distributions
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade twine
+          python -m twine check upload/*
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.12.4
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: upload

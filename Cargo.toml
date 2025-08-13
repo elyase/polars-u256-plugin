@@ -1,23 +1,22 @@
 [package]
 name = "polars-u256-plugin"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
-# Use published polars crates
-polars = { version = "0.50", default-features = false }
-polars-ffi = { version = "0.50" }
-polars-core = { version = "0.50", default-features = false }
-polars-arrow = { version = "0.50", default-features = false }
-polars-error = { version = "0.50" }
-polars-utils = { version = "0.50" }
+polars = { version = "0.49.1", default-features = false }
+polars-arrow = { version = "0.49.1", default-features = false }
 
 # Big integer + hex parsing
 ruint = { version = "1", default-features = true, features = ["std"] }
 hex = "0.4"
+
+# PyO3 + pyo3-polars derive (cookiecutter-style)
+pyo3 = { version = "0.25", features = ["extension-module", "abi3-py39"] }
+pyo3-polars = { version = "0.22", features = ["derive"] }
 
 [features]
 default = []
