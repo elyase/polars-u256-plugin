@@ -139,6 +139,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install polars>=0.50 pytest
           pip install dist/*.whl
+          rm -rf polars_u256_plugin
+          mkdir _t && cp -r tests _t/
+          cd _t
           pytest -q
 
   release:

@@ -34,3 +34,11 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["polars_u256_plugin"]
+artifacts = [
+  "polars_u256_plugin/bin/*",
+]
+
+[tool.hatch.build.targets.sdist]
+artifacts = [
+  "polars_u256_plugin/bin/*",
+]
