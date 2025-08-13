@@ -34,8 +34,14 @@ jobs:
       - uses: mozilla-actions/sccache-action@v0.0.6
       - name: Install uv
         uses: astral-sh/setup-uv@v4
-      - name: Install dependencies and package
-        run: uv sync --extra dev
+      - name: Create venv and install dependencies
+        run: |
+          uv venv
+          uv pip install pytest polars
+      - name: Build and install package
+        uses: PyO3/maturin-action@v1
+        with:
+          command: develop
       - name: Run tests
         run: uv run python -m pytest tests
 
@@ -55,10 +61,14 @@ jobs:
       - uses: mozilla-actions/sccache-action@v0.0.6
       - name: Install uv
         uses: astral-sh/setup-uv@v4
-      - name: Install dependencies and package with min polars version
+      - name: Create venv and install dependencies with min polars version
         run: |
-          uv sync --extra dev
-          uv pip install polars==1.3.0
+          uv venv
+          uv pip install pytest polars==1.3.0
+      - name: Build and install package
+        uses: PyO3/maturin-action@v1
+        with:
+          command: develop
       - name: Run tests
         run: uv run python -m pytest tests
 

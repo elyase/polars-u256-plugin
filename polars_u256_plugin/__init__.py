@@ -348,7 +348,7 @@ def _coerce_arg_i256(arg: Any) -> Any:
 
 i256_from_hex = _wrap_i256("i256_from_hex")
 i256_to_hex = _wrap_i256("i256_to_hex")
-i256_from_ints = _wrap_i256("i256_from_int")
+_i256_from_int_expr = _wrap_i256("i256_from_int")
 i256_add = _wrap("i256_add")
 i256_sub = _wrap("i256_sub")
 i256_mul = _wrap_i256("i256_mul")
@@ -362,6 +362,25 @@ i256_le = _wrap_i256("i256_le")
 i256_gt = _wrap_i256("i256_gt")
 i256_ge = _wrap_i256("i256_ge")
 i256_to_int = _wrap_i256("i256_to_int")
+
+# i256.from_int that accepts both int and Expr, plus a deprecated alias
+def i256_from_int(value: Union[int, pl.Expr]) -> pl.Expr:
+    """Convert a Python int or integer expression to i256.
+
+    - If ``value`` is a Python ``int``: returns a 32-byte two's-complement literal.
+    - If ``value`` is a Polars ``Expr``: converts the integer column to i256 per-element.
+    """
+    if isinstance(value, int):
+        return pl.lit(_int_to_i256_be32(int(value)))
+    return _i256_from_int_expr(value)
+
+def i256_from_ints(expr: pl.Expr) -> pl.Expr:  # backward-compat alias
+    warnings.warn(
+        "i256.from_ints(...) is deprecated and will be removed in a future release; use i256.from_int(...)",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _i256_from_int_expr(expr)
 
 
 def _wrap_agg_i256(name: str) -> Callable:
@@ -389,7 +408,7 @@ class _I256:
     from_hex = staticmethod(i256_from_hex)
     to_hex = staticmethod(i256_to_hex)
     from_ints = staticmethod(i256_from_ints)
-    from_int = staticmethod(lambda v: pl.lit(_int_to_i256_be32(int(v))))
+    from_int = staticmethod(i256_from_int)
     to_int = staticmethod(i256_to_int)
     add = staticmethod(i256_add)
     sub = staticmethod(i256_sub)
@@ -413,6 +432,7 @@ __all__ += [
     "i256",
     "i256_from_hex",
     "i256_to_hex",
+    "i256_from_int",
     "i256_from_ints",
     "i256_add",
     "i256_sub",
