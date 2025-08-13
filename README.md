@@ -1,7 +1,7 @@
 polars-u256-plugin
 ===================
 
-[![PyPI](https://img.shields.io/pypi/v/polars_u256_plugin.svg)](https://pypi.org/project/polars_u256_plugin/) [![CI](https://github.com/elyase/polars-u256-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/elyase/polars-u256-plugin/actions/workflows/ci.yml) [![Publish](https://github.com/elyase/polars-u256-plugin/actions/workflows/publish_to_pypi.yml/badge.svg)](https://github.com/elyase/polars-u256-plugin/actions/workflows/publish_to_pypi.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/polars_u256_plugin.svg)](https://pypi.org/project/polars_u256_plugin/) [![CI](https://github.com/elyase/polars-u256-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/elyase/polars-u256-plugin/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Polars plugin for 256-bit integer arithmetic.
 
