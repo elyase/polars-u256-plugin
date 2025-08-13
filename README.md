@@ -127,6 +127,30 @@ u256.to_hex(col)            # → hex strings (0x...)
 u256.to_int(col)            # → Python int (if fits in i64)
 ```
 
+### Group-By Aggregations
+```python
+df.group_by("account_id").agg(
+    u256.sum(u256.from_int(pl.col("tx_amount"))).alias("total_spent")
+)
+
+# Multiple aggregations
+df.group_by("token_address").agg([
+    u256.sum(u256.from_int(pl.col("balance"))).alias("total_supply"),
+    pl.len().alias("holder_count"),
+    pl.col("last_updated").max()
+])
+
+# Mixed with regular Polars aggregations
+df.group_by("wallet").agg([
+    u256.sum(u256.from_int(pl.col("wei_balance"))).alias("total_wei"),
+    pl.col("gas_used").sum(),
+    pl.col("block_number").max()
+]).with_columns(
+    # Convert to readable hex for display
+    u256.to_hex(pl.col("total_wei")).alias("total_wei_hex")
+)
+```
+
 ### Display Utilities
 ```python
 u256.format_u256_dataframe(df, cols)    # Format u256 columns as hex
