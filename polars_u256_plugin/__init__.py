@@ -4,6 +4,7 @@ import os
 import platform
 from pathlib import Path
 from typing import Any, Callable, Union
+import warnings
 
 import polars as pl
 
@@ -88,7 +89,7 @@ def _wrap(name: str) -> Callable:
 from_hex = _wrap("u256_from_hex")
 to_hex = _wrap("u256_to_hex")
 to_int = _wrap("u256_to_int")
-from_ints = _wrap("u256_from_int")
+_from_int_expr = _wrap("u256_from_int")
 add = _wrap("u256_add")
 sub = _wrap("u256_sub")
 mul = _wrap("u256_mul")
@@ -159,8 +160,8 @@ def register_all() -> None:
 
 
 # Import display utilities (this will auto-patch DataFrame class)
-from .display import format_u256_dataframe, print_u256_dataframe
-from .expr_namespace import install_expr_namespace
+from .display import format_u256_dataframe, print_u256_dataframe  # noqa: E402
+from .expr_namespace import install_expr_namespace  # noqa: E402
 
 # Re-export for convenience
 __all__ = [
@@ -169,6 +170,8 @@ __all__ = [
     "from_hex",
     "to_hex",
     "to_int",
+    "validate_hex",
+    "validate_range",
     "add",
     "sub", 
     "mul",
@@ -191,6 +194,9 @@ __all__ = [
     "print_u256_dataframe",
     "lit",
     "from_int",
+    "from_ints",
+    "MAX_VALUE",
+    "MIN_VALUE",
 ]
 
 # Install Expr namespace for fluent API at import time
@@ -234,9 +240,47 @@ def lit(value: Union[int, str, bytes]) -> pl.Expr:
     raise TypeError("u256.lit accepts int, hex str starting with 0x, or bytes")
 
 
-def from_int(value: int) -> pl.Expr:
-    """Convert a Python int into a u256 expression (32-byte BE binary)."""
-    return pl.lit(_int_to_be32(int(value)))
+def from_int(value: Union[int, pl.Expr]) -> pl.Expr:
+    """Convert an int or integer expression to u256 (32-byte big-endian).
+
+    - If ``value`` is a Python ``int``: returns a u256 literal expression.
+    - If ``value`` is a Polars ``Expr``: converts the integer column to u256 per-element.
+    """
+    if isinstance(value, int):
+        return pl.lit(_int_to_be32(int(value)))
+    return _from_int_expr(value)
+
+
+def from_ints(expr: pl.Expr) -> pl.Expr:  # backward-compat alias
+    """DEPRECATED: use ``from_int(expr)`` instead.
+
+    Accepts an integer Polars expression and converts it to u256 per-element.
+    """
+    warnings.warn(
+        "u256.from_ints(...) is deprecated and will be removed in a future release; use u256.from_int(...)",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _from_int_expr(expr)
+
+
+def validate_hex(expr: pl.Expr) -> pl.Expr:
+    """Return a boolean expression indicating whether each value is a valid u256 hex/binary.
+
+    Implementation detail: checks that ``u256.from_hex(expr)`` does not yield null.
+    """
+    return from_hex(expr).is_not_null()
+
+
+def validate_range(value: Union[int, pl.Expr]) -> pl.Expr:
+    """Return a boolean expression indicating whether value fits in unsigned 256 bits.
+
+    - For Python ints, evaluates immediately to a boolean literal.
+    - For Polars expressions, returns ``u256.from_int(expr).is_not_null()``.
+    """
+    if isinstance(value, int):
+        return pl.lit(0 <= value < (1 << 256))
+    return _from_int_expr(value).is_not_null()
 
 
 def _coerce_arg(arg: Any) -> Any:
@@ -254,6 +298,11 @@ def _coerce_arg(arg: Any) -> Any:
     if isinstance(arg, str) and arg.lower().startswith("0x"):
         return from_hex(pl.lit(arg))
     return arg
+
+
+# Public u256 constants (as expressions)
+MAX_VALUE = from_int((1 << 256) - 1)
+MIN_VALUE = from_int(0)
 
 
 # ------- i256 namespace (signed 256-bit, two's complement) -------
@@ -334,6 +383,9 @@ i256_sum = _wrap_agg_i256("i256_sum")
 
 
 class _I256:
+    # Common signed-256 constants (as expressions)
+    MAX_VALUE = pl.lit(_int_to_i256_be32((1 << 255) - 1))
+    MIN_VALUE = pl.lit(_int_to_i256_be32(-(1 << 255)))
     from_hex = staticmethod(i256_from_hex)
     to_hex = staticmethod(i256_to_hex)
     from_ints = staticmethod(i256_from_ints)

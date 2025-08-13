@@ -75,9 +75,22 @@ pip install polars_u256_plugin
 ### Initialization
 ```python
 u256.from_int(value)        # Python int → u256 expression  
-u256.from_ints(pl.col())    # Convert int column to u256
+u256.from_int(pl.col())     # Convert int column to u256 (preferred)
 u256.from_hex(pl.col())     # Hex strings → u256
 u256.lit(value)             # Create u256 literal (int/hex/bytes)
+```
+
+### Helpers & Constants
+```python
+# Validation helpers
+u256.validate_hex(pl.col("hex_str"))     # bool: valid hex/binary → u256
+u256.validate_range(pl.col("int_col"))   # bool: fits in unsigned 256-bit
+
+# Common constants (as expressions)
+u256.MAX_VALUE   # 2**256 - 1
+u256.MIN_VALUE   # 0
+i256.MAX_VALUE   # 2**255 - 1
+i256.MIN_VALUE   # -2**255
 ```
 
 ### Arithmetic
@@ -155,7 +168,7 @@ pl.col("balance").i256 + pl.col("amount").i256
 - Storage: U256/I256 are stored as 32 -byte big -endian Binary columns (BinaryView). This avoids Decimal128 limits and preserves exact integer values.
 - Ingest patterns:
   - Hex strings: For very large values, supply as hex (prefixed with `0x`) and use `u256.from_hex(...)` (recommended for big data and interop).
-  - Python ints (64 -bit range): If your integers fit within 64 -bit, use `u256.from_ints(pl.col(...))` to convert an integer column to U256.
+  - Python ints (64 -bit range): If your integers fit within 64 -bit, use `u256.from_int(pl.col(...))` to convert an integer column to U256.
   - Constants: Use `u256.from_int(pl.lit(<python_int>))` to create constant U256 expressions (works for very large integers).
 - Use Polars chunked builders or `from_iter_options(...).into_series()` (vs raw Arrow arrays).
 - Prefer BinaryView-backed builders; avoid unsafe Series construction.

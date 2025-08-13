@@ -20,7 +20,7 @@ for n in [1000_000, 10_000_000, 100_000_000]:
 
     # u256 plugin sum (conversion + sum)
     start = time.time()
-    base_df.with_columns(x=u256.from_ints(pl.col("x"))).select(
+    base_df.with_columns(x=u256.from_int(pl.col("x"))).select(
         u256.sum(pl.col("x"))
     ).collect()
     print(f"u256: {time.time() - start:.3f}s")

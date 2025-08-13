@@ -15,8 +15,8 @@ def with_plugin() -> pl.DataFrame:
         "a": [10**38, 10**38 + 5],
         "b": [12345678901234567890, 98765432109876543210],
     }).with_columns(
-        a=u256.from_ints(pl.col("a")),
-        b=u256.from_ints(pl.col("b")),
+        a=u256.from_int(pl.col("a")),
+        b=u256.from_int(pl.col("b")),
     )
 
     # U256 arithmetic stays exact. Use operator overloading + namespace.

@@ -4,8 +4,8 @@ import polars_u256_plugin as u256
 
 def test_u256_namespace_ops_small():
     df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).with_columns(
-        a=u256.from_ints(pl.col("a")),
-        b=u256.from_ints(pl.col("b")),
+        a=u256.from_int(pl.col("a")),
+        b=u256.from_int(pl.col("b")),
     )
     out = df.with_columns(
         s=(pl.col("a").u256 + pl.col("b")),
