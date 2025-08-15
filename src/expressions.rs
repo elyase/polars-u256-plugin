@@ -716,7 +716,7 @@ pub fn u256_min(inputs: &[Series]) -> PolarsResult<Series> {
         let mut arr=[0u8;32]; arr.copy_from_slice(v);
         match &mut minv {
             None => minv = Some(arr),
-            Some(m) => { if &arr[..] < &m[..] { *m = arr; } }
+            Some(m) => { if arr[..] < m[..] { *m = arr; } }
         }
     }
     let out = match minv { Some(x) => Series::new(s0.name().clone(), [Some(x.to_vec())]), None => Series::new(s0.name().clone(), [Option::<Vec<u8>>::None]) };
@@ -734,7 +734,7 @@ pub fn u256_max(inputs: &[Series]) -> PolarsResult<Series> {
         let mut arr=[0u8;32]; arr.copy_from_slice(v);
         match &mut maxv {
             None => maxv = Some(arr),
-            Some(m) => { if &arr[..] > &m[..] { *m = arr; } }
+            Some(m) => { if arr[..] > m[..] { *m = arr; } }
         }
     }
     let out = match maxv { Some(x) => Series::new(s0.name().clone(), [Some(x.to_vec())]), None => Series::new(s0.name().clone(), [Option::<Vec<u8>>::None]) };
