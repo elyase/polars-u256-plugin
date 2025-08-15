@@ -21,6 +21,15 @@ def test_u256_namespace_ops_small():
     assert out.select("q_i").to_series().to_list() == [2, 2, 3]
 
 
+def test_u256_namespace_ne_compare():
+    df = pl.DataFrame({"a": [1, 2], "b": [1, 3]}).with_columns(
+        a=u256.from_int(pl.col("a")),
+        b=u256.from_int(pl.col("b")),
+    )
+    out = df.select(ne=(pl.col("a").u256 != pl.col("b").u256))
+    assert out["ne"].to_list() == [False, True]
+
+
 def test_i256_namespace_ops():
     df = pl.DataFrame({"x": [-5, -1, 3]}).with_columns(
         x=u256.i256.from_int(pl.col("x"))

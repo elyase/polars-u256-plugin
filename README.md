@@ -41,10 +41,10 @@ pip install polars_u256_plugin
 ## ✨ Features
 
 ### Core Arithmetic & Operations
-- **Full 256-bit precision**: Built on [ruint](https://github.com/recmo/uint), a high-performance Rust library for arbitrary-precision unsigned integers, ensuring exact arithmetic without overflow or precision loss
-- **Complete operator support**: All standard arithmetic (`+`, `-`, `*`, `/`, `%`, `**`), bitwise (`&`, `|`, `^`, `~`, `<<`, `>>`), and comparison (`==`, `!=`, `<`, `<=`, `>`, `>=`) operations
-- **Aggregation functions**: `sum()`, `min()`, `max()`, `mean()`, `value_counts()` with proper null handling
-- **Series operations**: `cumsum()`, `diff()`, and other transformations for time-series analysis
+- **Full 256-bit precision**: Built on [ruint](https://github.com/recmo/uint), ensuring exact arithmetic without precision loss
+- **Operators**: Arithmetic (`+`, `-`, `*`, `/`, `%`, `**`), bitwise (`&`, `|`, `^`, `~`, `<<`, `>>`), comparisons (`==`, `<`, `<=`, `>`, `>=`)
+- **Aggregation**: `sum()`
+- **Series ops**: `cumsum()`, `diff()`
 
 ### Data Types & Precision
 - **U256 (unsigned)**: Full 0 to 2²⁵⁶-1 range for token balances, wei amounts, and large counters
@@ -176,10 +176,15 @@ pl.col("a").u256 < pl.col("b").u256
 # Methods
 pl.col("value").u256.to_hex()
 pl.col("data").u256.sum()
+# Aggregations
+pl.col("data").u256.min()
+pl.col("data").u256.max()
+pl.col("data").u256.mean()
 ```
 
 ### I256 (Signed) - Complete API
-All u256 functions available with `i256.` prefix, plus signed-specific:
+Supported operations (signed, two's complement): arithmetic (+, -, *, /, %, //=euclid),
+comparisons, aggregations (sum/min/max/mean), series ops (cumsum/diff), and helpers.
 ```python
 i256.div_euclid(a, b)       # Euclidean division
 i256.rem_euclid(a, b)       # Euclidean remainder
@@ -190,21 +195,38 @@ i256.to_int(col)            # Returns signed integers
 pl.col("balance").i256 + pl.col("amount").i256
 ```
 
-## Implementation Notes 
-- Storage: U256/I256 are stored as 32 -byte big -endian Binary columns (BinaryView). This avoids Decimal128 limits and preserves exact integer values.
-- Ingest patterns:
-  - Hex strings: For very large values, supply as hex (prefixed with `0x`) and use `u256.from_hex(...)` (recommended for big data and interop).
-  - Python ints (64 -bit range): If your integers fit within 64 -bit, use `u256.from_int(pl.col(...))` to convert an integer column to U256.
-  - Constants: Use `u256.from_int(pl.lit(<python_int>))` to create constant U256 expressions (works for very large integers).
-- Use Polars chunked builders or `from_iter_options(...).into_series()` (vs raw Arrow arrays).
-- Prefer BinaryView-backed builders; avoid unsafe Series construction.
-- Pre-size builders; use `append_null/append_option` for nulls.
-- Semantics:
-  - Division: u256 "/" = integer division (truncates toward zero). i256 "/" = truncates toward zero; "//" and `i256.div_euclid(...)` are Euclidean (floor) division.
-  - Remainder: `i256.mod` carries dividend sign; `i256.rem_euclid(...)` is non-negative.
+## Performance
+
+```
+Rows: 5,000,000
+== Aggregations ==
+u64: sum                        0.001s
+
+u256: sum only (preconv)        0.042s
+u256: conversion only           0.035s
+u256: from_int+sum              0.081s
+
+i128: sum only (preconv)        0.001s
+i128: conversion only           0.006s
+
+Decimal(0): sum only (preconv)  0.001s
+Decimal(0): conversion only     0.014s
+
+Python Object: map+sum          0.215s
+```
+
+See `examples/benchmarks.py` for more.
+
+Tip: preconvert once (`with_columns(x256=u256.from_int(...))`) and reuse. 
+
+## Implementation Notes
+- **Storage**: U256/I256 are 32-byte big-endian binary columns.
+- **Semantics**:
+  - Division: u256 uses truncating integer division; i256 has truncating `div` and Euclidean `div_euclid`/`rem_euclid`.
+  - Remainder: `i256.mod` carries dividend sign; Euclidean remainder is non-negative.
   - Errors: div/mod by zero → null.
-  - Overflow: u256 add/mul overflow → null; i256 add/sub/mul overflow/underflow → null (no wrapping).
-  - to_int: returns null if the value does not fit in signed 64-bit.
+  - Overflow: u256 add/mul overflow → null; i256 add/sub/mul wrap modulo 2²⁵⁶.
+  - `to_int`: returns null if the value does not fit in signed 64-bit.
 
 ### I256 (signed)
 - Two’s complement over 256 bits.

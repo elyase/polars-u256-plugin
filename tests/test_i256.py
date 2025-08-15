@@ -28,6 +28,24 @@ def test_i256_add_sub_wrap():
     assert df["d_i"].item() == -2
 
 
+def test_i256_mul_wrap():
+    # (-2) * 3 = -6 ; (-2) * (-3) = 6
+    df = pl.DataFrame({}).with_columns(
+        x=u256.i256.from_int(-2),
+        y=u256.i256.from_int(3),
+        z=u256.i256.from_int(-3),
+    )
+    out = df.with_columns(
+        xy=u256.i256.mul(pl.col("x"), pl.col("y")),
+        xz=u256.i256.mul(pl.col("x"), pl.col("z")),
+    ).with_columns(
+        xy_i=u256.i256.to_int(pl.col("xy")),
+        xz_i=u256.i256.to_int(pl.col("xz")),
+    )
+    assert out["xy_i"].item() == -6
+    assert out["xz_i"].item() == 6
+
+
 def test_i256_div_mod_signs():
     df = pl.DataFrame({}).with_columns(
         a=u256.i256.from_int(-7),
@@ -104,3 +122,30 @@ def test_i256_euclid_div_rem():
     )
     assert out3["qi"].item() == 3
     assert out3["ri"].item() == 2
+
+
+def test_i256_min_max_mean():
+    df = pl.DataFrame({"x": [-5, 2, -3]}).with_columns(v=u256.i256.from_int(pl.col("x")))
+    out = df.select(
+        tmin=u256.i256.min(pl.col("v")),
+        tmax=u256.i256.max(pl.col("v")),
+        tmean=u256.i256.mean(pl.col("v")),
+    ).with_columns(
+        tmin_i=u256.i256.to_int(pl.col("tmin")),
+        tmax_i=u256.i256.to_int(pl.col("tmax")),
+        tmean_i=u256.i256.to_int(pl.col("tmean")),
+    )
+    assert out["tmin_i"].item() == -5
+    assert out["tmax_i"].item() == 2
+    # (-5 + 2 + -3) / 3 = -2 (trunc toward zero)
+    assert out["tmean_i"].item() == -2
+
+
+def test_i256_value_counts():
+    df = pl.DataFrame({"x": [-1, 2, -1]}).with_columns(v=u256.i256.from_int(pl.col("x")))
+    vc = df.select(u256.i256_value_counts(pl.col("v")).alias("vc")).unnest("vc")
+    vals = vc["v"].to_list()
+    cnts = vc["count"].to_list()
+    m = dict(zip(vals, cnts))
+    assert m["-0x" + "0"*62 + "01"] == 2
+    assert m["0x" + "0"*62 + "02"] == 1

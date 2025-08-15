@@ -1,45 +1,66 @@
 #!/usr/bin/env python3
-"""Simple examples using Python ints (no hex).
+"""Minimal API tour for polars-u256-plugin.
 
-1) Show why native Decimal128 is insufficient for very large integers
-2) Do the same operations exactly with the U256 plugin
+Highlights:
+- Build u256 columns from ints/hex/literals
+- Do arithmetic/comparisons in expressions
+- Aggregate with u256.sum
+- Convert to hex for display
 """
+
+from __future__ import annotations
 
 import polars as pl
 import polars_u256_plugin as u256
 
 
-def with_plugin() -> pl.DataFrame:
-    # Build from Python ints directly (coerced to 32-byte big-endian binary)
-    df = pl.DataFrame({
-        "a": [10**38, 10**38 + 5],
-        "b": [12345678901234567890, 98765432109876543210],
-    }).with_columns(
-        a=u256.from_int(pl.col("a")),
-        b=u256.from_int(pl.col("b")),
+def main() -> None:
+    # Example inputs: mix of Python ints and hex strings
+    df = pl.DataFrame(
+        {
+            "a": [10**30, 42],
+            "b_hex": [
+                "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",  # 2**256-1
+                "0x2",
+            ],
+        }
     )
 
-    # U256 arithmetic stays exact. Use operator overloading + namespace.
-    out = (
-        df.with_columns(
-            s=(pl.col("a").u256 + pl.col("b")),
-            p=(pl.col("a").u256 * 2),
-            q=(pl.col("b").u256 / 3),
-        )
-        .with_columns(
-            s_hex=pl.col("s").u256.to_hex(),
-            p_hex=pl.col("p").u256.to_hex(),
-            q_hex=pl.col("q").u256.to_hex(),
-        )
-        .select(["s_hex", "p_hex", "q_hex"])
+    # 1) Build u256 columns
+    df = df.with_columns(
+        a256=u256.from_int(pl.col("a")),        # from integer column
+        b256=u256.from_hex(pl.col("b_hex")),     # from hex string column
+        c256=u256.lit(10**40),                   # literal u256 constant
     )
-    return out
+
+    # 2) Arithmetic & comparisons (operator overloading + namespace)
+    calc = df.select(
+        sum_ab=(pl.col("a256").u256 + pl.col("b256")).u256.to_hex(),
+        twice_a=(pl.col("a256").u256 * 2).u256.to_hex(),  # Python int auto-coerced
+        a_lt_b=(pl.col("a256").u256 < pl.col("b256")),
+    )
+
+    # 3) Aggregation (u256.sum) and presentation (to_hex)
+    agg = (
+        df.select(u256.sum(pl.col("a256")).alias("total_a"))
+        .with_columns(total_a_hex=u256.to_hex(pl.col("total_a")))
+        .select("total_a_hex")
+    )
+
+    print("Calculations:\n", calc)
+    print("\nAggregation:\n", agg)
+
+    # 4) Group-by aggregation (u256.sum per group)
+    tx = pl.DataFrame(
+        {
+            "wallet": ["a", "a", "b"],
+            "amt": ["0x01", "0x02", "0x03"],
+        }
+    ).with_columns(amt256=u256.from_hex(pl.col("amt")))
+    gb = tx.group_by("wallet").agg(total=u256.sum(pl.col("amt256")))
+    gb = gb.with_columns(total_hex=u256.to_hex(pl.col("total"))).select(["wallet", "total_hex"])
+    print("\nGroup-by totals:\n", gb)
 
 
 if __name__ == "__main__":
-    # Without plugin (Decimal128) – this overflows at 10**38
-    # pl.DataFrame({"x": [10**38]}).select(pl.col("x").cast(pl.Decimal(38, 0)))
-
-    # With plugin – exact arithmetic with Python ints
-    res = with_plugin()
-    print(res)
+    main()

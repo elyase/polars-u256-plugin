@@ -150,3 +150,26 @@ def test_sum_ungrouped_and_grouped_and_to_int_boundaries():
     assert out2["ai"].item() == u64_max
     assert out2["bi"].item() is None
 
+
+def test_min_max_mean_and_value_counts():
+    df = pl.DataFrame({"h": ["0x01", "0x03", "0x02", "0x01"]}).with_columns(v=u256.from_hex(pl.col("h")))
+    out = df.select(
+        tmin=u256.min(pl.col("v")),
+        tmax=u256.max(pl.col("v")),
+        tmean=u256.mean(pl.col("v")),
+    ).with_columns(
+        tmin_hex=u256.to_hex(pl.col("tmin")),
+        tmax_hex=u256.to_hex(pl.col("tmax")),
+        tmean_hex=u256.to_hex(pl.col("tmean")),
+    )
+    assert out["tmin_hex"].item().endswith("01")
+    assert out["tmax_hex"].item().endswith("03")
+    assert out["tmean_hex"].item().endswith("01")  # floor((1+3+2+1)/4)=1
+
+    vc = df.select(u256.value_counts(pl.col("v")).alias("vc")).unnest("vc")
+    vals = vc["v"].to_list()
+    cnts = vc["count"].to_list()
+    m = dict(zip(vals, cnts))
+    assert m["0x" + "0"*62 + "01"] == 2
+    assert m["0x" + "0"*62 + "02"] == 1
+    assert m["0x" + "0"*62 + "03"] == 1

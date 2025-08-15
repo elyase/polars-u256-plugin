@@ -91,7 +91,11 @@ class U256ExprOps:
 
     # Comparisons
     def __eq__(self, other: Any) -> pl.Expr:  # type: ignore[override]
-        return self._u.eq(self._expr, other)
+        other_expr = other._expr if isinstance(other, U256ExprOps) else other
+        return self._u.eq(self._expr, other_expr)
+    def __ne__(self, other: Any) -> pl.Expr:  # type: ignore[override]
+        other_expr = other._expr if isinstance(other, U256ExprOps) else other
+        return self._u.eq(self._expr, other_expr).not_()
 
     def __lt__(self, other: Any) -> pl.Expr:  # type: ignore[override]
         return self._u.lt(self._expr, other)
@@ -111,6 +115,20 @@ class U256ExprOps:
 
     def sum(self) -> pl.Expr:
         return self._u.sum(self._expr)
+    def min(self) -> pl.Expr:
+        return self._u.min(self._expr)
+    def max(self) -> pl.Expr:
+        return self._u.max(self._expr)
+    def mean(self) -> pl.Expr:
+        return self._u.mean(self._expr)
+    def value_counts(self) -> pl.Expr:
+        return self._u.value_counts(self._expr)
+
+    def cumsum(self) -> pl.Expr:
+        return self._u.cumsum(self._expr)
+
+    def diff(self) -> pl.Expr:
+        return self._u.diff(self._expr)
 
 
 class I256ExprOps:
@@ -165,7 +183,11 @@ class I256ExprOps:
 
     # Comparisons
     def __eq__(self, other: Any) -> pl.Expr:  # type: ignore[override]
-        return self._u.i256_eq(self._expr, other)
+        other_expr = other._expr if isinstance(other, I256ExprOps) else other
+        return self._u.i256_eq(self._expr, other_expr)
+    def __ne__(self, other: Any) -> pl.Expr:  # type: ignore[override]
+        other_expr = other._expr if isinstance(other, I256ExprOps) else other
+        return self._u.i256_eq(self._expr, other_expr).not_()
 
     def __lt__(self, other: Any) -> pl.Expr:  # type: ignore[override]
         return self._u.i256_lt(self._expr, other)
@@ -185,6 +207,20 @@ class I256ExprOps:
 
     def sum(self) -> pl.Expr:
         return self._u.i256_sum(self._expr)
+    def min(self) -> pl.Expr:
+        return self._u.i256_min(self._expr)
+    def max(self) -> pl.Expr:
+        return self._u.i256_max(self._expr)
+    def mean(self) -> pl.Expr:
+        return self._u.i256_mean(self._expr)
+    def value_counts(self) -> pl.Expr:
+        return self._u.i256_value_counts(self._expr)
+
+    def cumsum(self) -> pl.Expr:
+        return self._u.i256_cumsum(self._expr)
+
+    def diff(self) -> pl.Expr:
+        return self._u.i256_diff(self._expr)
 
 
 def install_expr_namespace() -> None:

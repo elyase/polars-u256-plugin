@@ -590,3 +590,235 @@ pub fn i256_div(inputs: &[Series]) -> PolarsResult<Series> {
     });
     Ok(out)
 }
+
+#[polars_expr(output_type=Binary)]
+pub fn i256_mul(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 2 { polars_bail!(ComputeError: "i256_mul expects exactly 2 input columns"); }
+    let s0 = &inputs[0]; let s1 = &inputs[1];
+    let a = s0.binary()?; let b = s1.binary()?;
+    let out = map_pair_binary_to_binary_series(s0.name(), a, b, |la, rb| {
+        // Two's-complement 256-bit multiplication corresponds to wrapping mul on U256
+        let ua = U256::from_be_bytes({ let mut t=[0u8;32]; t.copy_from_slice(la); t });
+        let ub = U256::from_be_bytes({ let mut t=[0u8;32]; t.copy_from_slice(rb); t });
+        Some(ua.overflowing_mul(ub).0.to_be_bytes())
+    });
+    Ok(out)
+}
+
+// -------------------- Series ops: cumsum/diff (u256 & i256) --------------------
+
+#[polars_expr(output_type=Binary)]
+pub fn u256_cumsum(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "u256_cumsum expects 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let name = s0.name();
+    let mut acc = U256::from(0u8);
+    let mut has_seen_valid = false;
+    let iter = a.into_iter().map(|opt| {
+        match opt {
+            Some(bytes) if bytes.len() == 32 => {
+                has_seen_valid = true;
+                let v = u256_from_be32(bytes).ok()?;
+                let (new, overflow) = acc.overflowing_add(v);
+                acc = new;
+                if overflow { None } else { Some(u256_to_be32(&acc)) }
+            }
+            _ => None,
+        }
+    });
+    Ok(binary_series_from_iter(name, iter))
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn u256_diff(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "u256_diff expects 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let name = s0.name();
+    let mut prev: Option<U256> = None;
+    let iter = a.into_iter().map(|opt| {
+        match (opt, prev) {
+            (Some(bytes), None) => {
+                if bytes.len() != 32 { prev = None; return None; }
+                prev = u256_from_be32(bytes).ok();
+                None
+            }
+            (Some(bytes), Some(p)) => {
+                if bytes.len() != 32 { prev = None; return None; }
+                let v = u256_from_be32(bytes).ok()?;
+                let diff = v.checked_sub(p)?; // underflow -> None
+                prev = Some(v);
+                Some(u256_to_be32(&diff))
+            }
+            _ => { prev = None; None }
+        }
+    });
+    Ok(binary_series_from_iter(name, iter))
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn i256_cumsum(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "i256_cumsum expects 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let name = s0.name();
+    let mut acc = U256::from(0u8);
+    let iter = a.into_iter().map(|opt| match opt {
+        Some(bytes) if bytes.len() == 32 => {
+            let v = U256::from_be_bytes({ let mut t=[0u8;32]; t.copy_from_slice(bytes); t });
+            let (new, _) = acc.overflowing_add(v); // wrap on overflow
+            acc = new;
+            Some(acc.to_be_bytes())
+        }
+        _ => None,
+    });
+    Ok(binary_series_from_iter(name, iter))
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn i256_diff(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "i256_diff expects 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let name = s0.name();
+    let mut prev: Option<U256> = None;
+    let iter = a.into_iter().map(|opt| {
+        match (opt, prev) {
+            (Some(bytes), None) => {
+                if bytes.len() != 32 { prev = None; return None; }
+                prev = Some(U256::from_be_bytes({ let mut t=[0u8;32]; t.copy_from_slice(bytes); t }));
+                None
+            }
+            (Some(bytes), Some(p)) => {
+                if bytes.len() != 32 { prev = None; return None; }
+                let v = U256::from_be_bytes({ let mut t=[0u8;32]; t.copy_from_slice(bytes); t });
+                let (d, _) = v.overflowing_sub(p); // wrap on underflow
+                prev = Some(v);
+                Some(d.to_be_bytes())
+            }
+            _ => { prev = None; None }
+        }
+    });
+    Ok(binary_series_from_iter(name, iter))
+}
+
+// -------------------- Aggregations: min/max/mean (u256 & i256) --------------------
+
+#[polars_expr(output_type=Binary)]
+pub fn u256_min(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "u256_min expects exactly 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let mut minv: Option<[u8;32]> = None;
+    for v in a.into_iter().flatten() {
+        if v.len() != 32 { continue; }
+        let mut arr=[0u8;32]; arr.copy_from_slice(v);
+        match &mut minv {
+            None => minv = Some(arr),
+            Some(m) => { if &arr[..] < &m[..] { *m = arr; } }
+        }
+    }
+    let out = match minv { Some(x) => Series::new(s0.name().clone(), [Some(x.to_vec())]), None => Series::new(s0.name().clone(), [Option::<Vec<u8>>::None]) };
+    Ok(out)
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn u256_max(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "u256_max expects exactly 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let mut maxv: Option<[u8;32]> = None;
+    for v in a.into_iter().flatten() {
+        if v.len() != 32 { continue; }
+        let mut arr=[0u8;32]; arr.copy_from_slice(v);
+        match &mut maxv {
+            None => maxv = Some(arr),
+            Some(m) => { if &arr[..] > &m[..] { *m = arr; } }
+        }
+    }
+    let out = match maxv { Some(x) => Series::new(s0.name().clone(), [Some(x.to_vec())]), None => Series::new(s0.name().clone(), [Option::<Vec<u8>>::None]) };
+    Ok(out)
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn u256_mean(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "u256_mean expects exactly 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let mut sum = U256::from(0u8);
+    let mut cnt: u64 = 0;
+    for v in a.into_iter().flatten() {
+        if v.len() != 32 { continue; }
+        let u = u256_from_be32(v).unwrap();
+        let (new_sum, overflow) = sum.overflowing_add(u);
+        if overflow { return Ok(Series::new(s0.name().clone(), [Option::<Vec<u8>>::None])); }
+        sum = new_sum;
+        cnt += 1;
+    }
+    if cnt == 0 { return Ok(Series::new(s0.name().clone(), [Option::<Vec<u8>>::None])); }
+    let q = sum / U256::from(cnt);
+    Ok(Series::new(s0.name().clone(), [Some(u256_to_be32(&q).to_vec())]))
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn i256_min(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "i256_min expects exactly 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let mut minv: Option<[u8;32]> = None;
+    for v in a.into_iter().flatten() {
+        if v.len() != 32 { continue; }
+        let mut arr=[0u8;32]; arr.copy_from_slice(v);
+        match &mut minv {
+            None => minv = Some(arr),
+            Some(m) => {
+                if i256_cmp_bytes(&arr, m).map(|o| o.is_lt()).unwrap_or(false) { *m = arr; }
+            }
+        }
+    }
+    let out = match minv { Some(x) => Series::new(s0.name().clone(), [Some(x.to_vec())]), None => Series::new(s0.name().clone(), [Option::<Vec<u8>>::None]) };
+    Ok(out)
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn i256_max(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "i256_max expects exactly 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let mut maxv: Option<[u8;32]> = None;
+    for v in a.into_iter().flatten() {
+        if v.len() != 32 { continue; }
+        let mut arr=[0u8;32]; arr.copy_from_slice(v);
+        match &mut maxv {
+            None => maxv = Some(arr),
+            Some(m) => {
+                if i256_cmp_bytes(&arr, m).map(|o| o.is_gt()).unwrap_or(false) { *m = arr; }
+            }
+        }
+    }
+    let out = match maxv { Some(x) => Series::new(s0.name().clone(), [Some(x.to_vec())]), None => Series::new(s0.name().clone(), [Option::<Vec<u8>>::None]) };
+    Ok(out)
+}
+
+#[polars_expr(output_type=Binary)]
+pub fn i256_mean(inputs: &[Series]) -> PolarsResult<Series> {
+    if inputs.len() != 1 { polars_bail!(ComputeError: "i256_mean expects exactly 1 input column"); }
+    let s0 = &inputs[0];
+    let a = s0.binary()?;
+    let mut sum = U256::from(0u8);
+    let mut cnt: u64 = 0;
+    for v in a.into_iter().flatten() {
+        if v.len() != 32 { continue; }
+        let u = U256::from_be_bytes({ let mut t=[0u8;32]; t.copy_from_slice(v); t });
+        // two's complement add (wrap)
+        sum = sum.overflowing_add(u).0;
+        cnt += 1;
+    }
+    if cnt == 0 { return Ok(Series::new(s0.name().clone(), [Option::<Vec<u8>>::None])); }
+    // signed division of (sum) by positive cnt, trunc toward zero
+    let (mag, neg) = i256_abs_u256(&sum.to_be_bytes::<32>());
+    let q_abs = mag / U256::from(cnt);
+    let q = if neg && q_abs != U256::from(0u8) { (!q_abs).overflowing_add(U256::from(1u8)).0 } else { q_abs };
+    Ok(Series::new(s0.name().clone(), [Some(q.to_be_bytes::<32>().to_vec())]))
+}

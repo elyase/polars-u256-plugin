@@ -107,6 +107,8 @@ bitxor = _wrap("u256_bitxor")
 bitnot = _wrap("u256_bitnot")
 shl = _wrap("u256_shl")
 shr = _wrap("u256_shr")
+cumsum = _wrap("u256_cumsum")
+diff = _wrap("u256_diff")
 
 # Aggregation functions (need different wrapper for non-elementwise)
 def _wrap_agg(name: str) -> Callable:
@@ -124,6 +126,9 @@ def _wrap_agg(name: str) -> Callable:
     return call
 
 sum = _wrap_agg("u256_sum")
+min = _wrap_agg("u256_min")
+max = _wrap_agg("u256_max")
+mean = _wrap_agg("u256_mean")
 
 
 def register_all() -> None:
@@ -362,6 +367,8 @@ i256_le = _wrap_i256("i256_le")
 i256_gt = _wrap_i256("i256_gt")
 i256_ge = _wrap_i256("i256_ge")
 i256_to_int = _wrap_i256("i256_to_int")
+i256_cumsum = _wrap_i256("i256_cumsum")
+i256_diff = _wrap_i256("i256_diff")
 
 # i256.from_int that accepts both int and Expr, plus a deprecated alias
 def i256_from_int(value: Union[int, pl.Expr]) -> pl.Expr:
@@ -399,6 +406,20 @@ def _wrap_agg_i256(name: str) -> Callable:
 
 
 i256_sum = _wrap_agg_i256("i256_sum")
+i256_min = _wrap_agg_i256("i256_min")
+i256_max = _wrap_agg_i256("i256_max")
+i256_mean = _wrap_agg_i256("i256_mean")
+
+# Value counts helper (uses Polars native value_counts on hex strings)
+def value_counts(expr: pl.Expr) -> pl.Expr:
+    """Return value counts as a struct with fields 'values' and 'counts'.
+
+    Implemented via ``u256.to_hex(expr).value_counts()``.
+    """
+    return to_hex(expr).value_counts()
+
+def i256_value_counts(expr: pl.Expr) -> pl.Expr:
+    return i256_to_hex(expr).value_counts()
 
 
 class _I256:
@@ -412,6 +433,9 @@ class _I256:
     to_int = staticmethod(i256_to_int)
     add = staticmethod(i256_add)
     sub = staticmethod(i256_sub)
+    min = staticmethod(i256_min)
+    max = staticmethod(i256_max)
+    mean = staticmethod(i256_mean)
     mul = staticmethod(i256_mul)
     div = staticmethod(i256_div)
     mod = staticmethod(i256_mod)
@@ -423,6 +447,9 @@ class _I256:
     gt = staticmethod(i256_gt)
     ge = staticmethod(i256_ge)
     sum = staticmethod(i256_sum)
+    value_counts = staticmethod(i256_value_counts)
+    cumsum = staticmethod(i256_cumsum)
+    diff = staticmethod(i256_diff)
 
 
 i256 = _I256()
